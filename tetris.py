@@ -26,11 +26,14 @@ class Tetris:
         def __init__(self,game):
             Thread.__init__(self)
             self.game=game
+            self.pause=False
             self.start()
 
         def run(self):
-            while self.game.isLegal():
+            while self.game._Tetris__islegal():
                 sleep(self.game.interval)
+                while self.pause:
+                    sleep(0.1)
                 self.game.down()
                 self.game.display()
 
@@ -38,37 +41,51 @@ class Tetris:
         while True:
             cls()
             mode=input("Welcome to Tetris!\n\nW to rotate\nA to move left\nS to move down\nD to move right\nSpace to drop\nQ to quit\n\nNow, please select a mode: (E)asy, (M)edium, or (H)ard, or (Q)uit.\n")
-            if mode=="":continue
+            if mode=="":
+                continue
             elif mode in "EeMmHh":
-                self.interval,self.mode={"E":(2,0),"e":(2,0),"M":(1,1),"m":(1,1),"H":(0.5,2),"h":(0.5,2)}[mode]
+                self.interval,self.mode={"E":(1,0),"e":(1,0),"M":(0.5,1),"m":(0.5,1),"H":(0.25,2),"h":(0.25,2)}[mode]
                 break
-            elif mode in "Qq":exit()
+            elif mode in "Qq":
+                exit()
         self.board=[]
         for i in range(20):
             self.board.append([])
             for j in range(10):self.board[i].append(" ")
         self.score=0
-        self.isOver=False
+        self.quited=False
         self.cur=self.__Block(choice("IJLOSTZ"))
         self.nxt=self.__Block(choice("IJLOSTZ"))
         self.guide()
         self.display()
-        self.__Autofall(self)
-        while self.isLegal():
+        self.__autofall=self.__Autofall(self)
+        while self.__islegal():
             i=input()
-            if i=="":pass
-            elif i in "Qq":self.isOver=True
-            else:{
-                "W":self.rotate,
-                "w":self.rotate,
-                "A":self.left,
-                "a":self.left,
-                "S":self.down,
-                "s":self.down,
-                "D":self.right,
-                "d":self.right,
-                " ":self.drop
-            }[i]()
+            if i=="":
+                pass
+            elif i in "Qq":
+                self.quited=True
+            elif i in "Pp":
+                self.__autofall.pause=True
+                cls()
+                print("Paused\n\nCurrent score:",self.score)
+                input("\nPress ENTER to resume\n")
+                self.__autofall.pause=False
+            else:
+                try:
+                    {
+                        "W":self.rotate,
+                        "w":self.rotate,
+                        "A":self.left,
+                        "a":self.left,
+                        "S":self.down,
+                        "s":self.down,
+                        "D":self.right,
+                        "d":self.right,
+                        " ":self.drop
+                    }[i]()
+                except KeyError:
+                    pass
             self.display()
         #Display the high scores:
         sleep(self.interval)
@@ -79,7 +96,8 @@ class Tetris:
                 highScores.append(record.readline()[:-1].split(","))
                 highScores[i][0]=int(highScores[i][0])
                 highScores[i][1]=int(highScores[i][1])
-                if pos==10 and (self.score>highScores[i][0] or (self.score==highScores[i][0] and self.mode>highScores[i][1])):pos=i
+                if pos==10 and (self.score>highScores[i][0] or (self.score==highScores[i][0] and self.mode>highScores[i][1])):
+                    pos=i
         cls()
         if pos!=10:
             highScores.pop(-1)
@@ -100,66 +118,93 @@ class Tetris:
         print(" --0-1-2-3-4-5-6-7-8-9--      - N E X T -")
         print(end=" 0|")
         for i in range(10):
-            if (0-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:print(self.cur.shape,end="|")
-            elif (0,i) in self.shadow:print(end="*|")
-            else:print(self.board[0][i],end="|")
+            if (0-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:
+                print(self.cur.shape,end="|")
+            elif (0,i) in self.shadow:
+                print(end="*|")
+            else:
+                print(self.board[0][i],end="|")
         print(end="0      0|")
         for i in range(4):
-            if (1,i) in self.nxt.rel[self.nxt.ori]:print(self.nxt.shape,end="|")
-            else:print(end=" |")
+            if (1,i) in self.nxt.rel[self.nxt.ori]:
+                print(self.nxt.shape,end="|")
+            else:
+                print(end=" |")
         print("1")
         print(end=" 1|")
         for i in range(10):
-            if (1-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:print(self.cur.shape,end="|")
-            elif (1,i) in self.shadow:print(end="*|")
-            else:print(self.board[1][i],end="|")
+            if (1-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:
+                print(self.cur.shape,end="|")
+            elif (1,i) in self.shadow:
+                print(end="*|")
+            else:
+                print(self.board[1][i],end="|")
         print(end="1      1|")
         for i in range(4):
-            if (2,i) in self.nxt.rel[self.nxt.ori]:print(self.nxt.shape,end="|")
-            else:print(end=" |")
+            if (2,i) in self.nxt.rel[self.nxt.ori]:
+                print(self.nxt.shape,end="|")
+            else:
+                print(end=" |")
         print("1")
         print(end=" 2|")
         for i in range(10):
-            if (2-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:print(self.cur.shape,end="|")
-            elif (2,i) in self.shadow:print(end="*|")
-            else:print(self.board[2][i],end="|")
+            if (2-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:
+                print(self.cur.shape,end="|")
+            elif (2,i) in self.shadow:
+                print(end="*|")
+            else:
+                print(self.board[2][i],end="|")
         print("2      --3-4-5-6--")
         print(end=" 3|")
         for i in range(10):
-            if (3-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:print(self.cur.shape,end="|")
-            elif (3,i) in self.shadow:print(end="*|")
-            else:print(self.board[3][i],end="|")
+            if (3-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:
+                print(self.cur.shape,end="|")
+            elif (3,i) in self.shadow:
+                print(end="*|")
+            else:
+                print(self.board[3][i],end="|")
         print("3")
         print(end=" 4|")
         for i in range(10):
-            if (4-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:print(self.cur.shape,end="|")
-            elif (4,i) in self.shadow:print(end="*|")
-            else:print(self.board[4][i],end="|")
+            if (4-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:
+                print(self.cur.shape,end="|")
+            elif (4,i) in self.shadow:
+                print(end="*|")
+            else:
+                print(self.board[4][i],end="|")
         print("4      Score:",self.score,("(Easy)","(Medium)","(Hard)")[self.mode])
         for i in range(5,20):
             print("%2d"%(i),end="|")
             for j in range(10):
-                if (i-self.cur.ref[0],j-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:print(self.cur.shape,end="|")
-                elif (i,j) in self.shadow:print(end="*|")
-                else:print(self.board[i][j],end="|")
+                if (i-self.cur.ref[0],j-self.cur.ref[1]) in self.cur.rel[self.cur.ori]:
+                    print(self.cur.shape,end="|")
+                elif (i,j) in self.shadow:
+                    print(end="*|")
+                else:
+                    print(self.board[i][j],end="|")
             print(str(i))
         print("  -0-1-2-3-4-5-6-7-8-9-")
 
     def rotate(self):
         ori=self.cur.ori
         self.cur.ori+=1
-        if self.cur.ori==len(self.cur.rel):self.cur.ori=0
-        if self.isLegal():self.guide()
-        else:self.cur.ori=ori
+        if self.cur.ori==len(self.cur.rel):
+            self.cur.ori=0
+        if self.__islegal():
+            self.guide()
+        else:
+            self.cur.ori=ori
 
     def left(self):
         self.cur.ref[1]-=1
-        if self.isLegal():self.guide()
-        else:self.cur.ref[1]+=1
+        if self.__islegal():
+            self.guide()
+        else:
+            self.cur.ref[1]+=1
 
     def down(self):
         self.cur.ref[0]+=1
-        if not self.isLegal():
+        if not self.__islegal():
             self.cur.ref[0]-=1
             x,y=self.cur.ref
             for i in self.cur.rel[self.cur.ori]:
@@ -175,17 +220,22 @@ class Tetris:
 
     def right(self):
         self.cur.ref[1]+=1
-        if self.isLegal():self.guide()
-        else:self.cur.ref[1]-=1
+        if self.__islegal():
+            self.guide()
+        else:
+            self.cur.ref[1]-=1
 
     def drop(self):
-        while self.cur.ref!=[-1,3]:self.down()
+        while self.cur.ref!=[-1,3]:
+            self.down()
 
-    def isLegal(self):
-        if self.isOver:return False
+    def __islegal(self):
+        if self.quited:
+            return False
         x,y=self.cur.ref
         for i in self.cur.rel[self.cur.ori]:
-            if x+i[0] not in range(20) or y+i[1] not in range(10) or self.board[x+i[0]][y+i[1]]!=" ":return False
+            if x+i[0] not in range(20) or y+i[1] not in range(10) or self.board[x+i[0]][y+i[1]]!=" ":
+                return False
         return True
 
     def guide(self):
@@ -201,8 +251,10 @@ class Tetris:
                     break
             else:
                 h=19-x
-            if h<H:H=h
+            if h<H:
+                H=h
         self.shadow=[]
         for i in rel:self.shadow.append((i[0]+ref[0]+H,i[1]+ref[1]))
 
-if __name__=="__main__":Tetris()
+if __name__=="__main__":
+    Tetris()
