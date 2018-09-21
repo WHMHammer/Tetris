@@ -7,10 +7,10 @@ The first version I uploaded here is **not** the starting version already. I hav
 - 3 levels of difficulty (can be easily modified to manually set the game speed)
 - Show the next block
 - Show current score
+- One-button-to-pause/resume
 - One-button-to-quit
 - Store the highest scores in *tetrisHighScores.csv* under the directory of *tetris.py*
 ### Goals
-- One-button-to-pause/resume
 - GUI
 ### Bugs
 (None as I know for now)
