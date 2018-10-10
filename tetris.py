@@ -40,7 +40,7 @@ class Tetris:
     def __init__(self):
         while True:
             cls()
-            mode=input("Welcome to Tetris!\n\nW to rotate\nA to move left\nS to move down\nD to move right\nSpace to drop\nQ to quit\n\nNow, please select a mode: (E)asy, (M)edium, or (H)ard, or (Q)uit.\n")
+            mode=input("Welcome to Tetris!\n\nW to rotate\nA to move left\nS to move down\nD to move right\nSpace to drop\nP to pause\nQ to quit\n\nNow, please select a mode: (E)asy, (M)edium, or (H)ard, or (Q)uit.\n")
             if mode=="":
                 continue
             elif mode in "EeMmHh":
@@ -110,7 +110,7 @@ class Tetris:
             cls()
         print("High scores:")
         for i in range(10):
-            print("*NEW*" if i==pos else "No.%2d"%(i+1),"%4d"%highScores[i][0],(" Easy ","Meidum"," Hard ")[highScores[i][1]],highScores[i][2])
+            print("*NEW*" if i==pos else "No.%2d"%(i+1),"%4d"%highScores[i][0],(" Easy ","Medium"," Hard ")[highScores[i][1]],highScores[i][2])
 
     def display(self):
         cls()
