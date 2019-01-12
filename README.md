@@ -20,7 +20,7 @@ The first version I uploaded here is **not** the starting version already. I hav
 
 - One-button-to-quit
 
-- Store the highest scores in *tetrisHighScores.csv* under the directory of *tetris.py*
+- Store the highest scores in *tetris.db* under the same directory of *tetris.py*
 
 ### Goals
 
