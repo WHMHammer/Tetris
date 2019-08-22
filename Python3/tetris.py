@@ -1,247 +1,279 @@
-import sqlite3
-from os import system
-from os.path import abspath,dirname,join
-from platform import platform
+import sqlite3 as sql
+import tkinter as tk
+
 from random import choice
 from threading import Thread
-from time import sleep,time
+from time import sleep
 
-cls=lambda :system("cls" if "Windows" in platform() else "clear")
+COLOR_SCHEME = {
+    "background": "#bfbfbf",
+    "border": "#3f3f3f",
+    "shadow": "#7f7f7f",
+    "I": "#ff0000",
+    "J": "#ff6600",
+    "L": "#ffee00",
+    "O": "#00ff00",
+    "S": "#00ffff",
+    "T": "#0000ff",
+    "Z": "#9900ff"
+}
 
-class Block:
-    def __init__(self,shape):
-        self.shape=shape    #shape in "IJLOSTZ"
-        self.ori=0    #orientation
-        self.ref=[-1,3]    #point of reference
-        self.rel={
-            "I":(
-                ((1,0),(1,1),(1,2),(1,3)),
-                ((0,1),(1,1),(2,1),(3,1))
-            ),
-            "J":(
-                ((1,0),(1,1),(1,2),(2,2)),
-                ((0,1),(1,1),(2,0),(2,1)),
-                ((0,0),(1,0),(1,1),(1,2)),
-                ((0,1),(0,2),(1,1),(2,1))
-            ),
-            "L":(
-                ((1,0),(1,1),(1,2),(2,0)),
-                ((0,0),(0,1),(1,1),(2,1)),
-                ((0,2),(1,0),(1,1),(1,2)),
-                ((0,1),(1,1),(2,1),(2,2))
-            ),
-            "O":(
-                ((1,1),(1,2),(2,1),(2,2)),
-            ),
-            "S":(
-                ((1,2),(1,3),(2,1),(2,2)),
-                ((1,1),(2,1),(2,2),(3,2))
-            ),
-            "T":(
-                ((1,0),(1,1),(1,2),(2,1)),
-                ((0,1),(1,0),(1,1),(2,1)),
-                ((0,1),(1,0),(1,1),(1,2)),
-                ((0,1),(1,1),(1,2),(2,1))
-            ),
-            "Z":(
-                ((1,0),(1,1),(2,1),(2,2)),
-                ((1,2),(2,1),(2,2),(3,1))
-            )
-        }[self.shape]    #relative positions
-
-class Tetris:
+class Tetris(tk.Tk):
     def __init__(self):
-        while True:
-            cls()
-            mode=input("Welcome to Tetris!\n\nW to rotate\nA to move left\nS to move down\nD to move right\nSpace to drop\nP to pause\nQ to quit\n\nNow, please select a mode: (E)asy, (M)edium, or (H)ard, or (Q)uit.\n")
-            try:
-                self.interval,self.mode={
-                    "e":(1,"Easy"),
-                    "m":(0.5,"Medium"),
-                    "h":(0.25,"Hard")
-                }[mode]
-            except KeyError:
-                if mode=="q":
-                    exit()
-            else:
-                break
-        self.board=[]
+        super().__init__()
+        self.title("Tetris - WHMHammer")
+        self.resizable(0,0)
+
+        self.board_frame = tk.Frame(
+            self,
+            bg = COLOR_SCHEME["background"],
+            highlightbackground = COLOR_SCHEME["border"],
+            highlightthickness = 1,
+        )
+        self.board = []
         for i in range(20):
             self.board.append([])
-            for j in range(10):self.board[i].append(" ")
-        self.score=0
-        self.quited=False
-        self.cur=Block(choice("IJLOSTZ"))
-        self.nxt=Block(choice("IJLOSTZ"))
-        self.guide()
+            for j in range(10):
+                self.board[i].append(Square(self.board_frame))
+                self.board[i][j].grid(row = i, column = j)
+        self.board_frame.grid(row = 0, column = 0)
+
+        tk.Frame(self, width = 32).grid(row = 0, column = 1)
+
+        self.info_frame = tk.Frame(self)
+        self.next_tetrimino_squares = []
+        for i in range(2):
+            self.next_tetrimino_squares.append([])
+            for j in range(4):
+                self.next_tetrimino_squares[i].append(Square(self.info_frame))
+                self.next_tetrimino_squares[i][j].grid(row = i, column = j)
+        self.scoreboard = tk.Label(self.info_frame, text="Score: 0")
+        self.scoreboard.grid(row = 2, column = 0, columnspan = 4)
+        self.info_frame.grid(row = 0, column = 2, sticky = tk.N)
+
+        self.score = 0
+
+        self.current_tetrimino = Tetrimino(choice("IJLOSTZ"))
+        self.next_tetrimino = Tetrimino(choice("IJLOSTZ"))
+        self.shadow_position = [0,3]
+        self.refresh_shadow()
+
         self.display()
-        self.autofall=Autofall(self)
-        while self.islegal():
-            i=input()
-            if i=="":
-                pass
-            elif i=="q":
-                self.quited=True
-            elif i=="p":
-                self.autofall.pause=True
-                cls()
-                print("Paused\n\nCurrent score:",self.score)
-                input("\nPress ENTER to resume\n")
-                self.autofall.pause=False
-            else:
-                try:
-                    {
-                        "w":self.rotate,
-                        "a":self.left,
-                        "s":self.down,
-                        "d":self.right,
-                        " ":self.drop
-                    }[i]()
-                except KeyError:
-                    pass
-            self.display()
-        #Display the high scores:
-        sleep(self.interval)
-        conn=sqlite3.connect(join(dirname(abspath(__file__)),"tetris.db"))
-        cur=conn.cursor()
-        cur.execute("select * from %s order by score desc,time asc;"%self.mode)
-        high_scores=cur.fetchall()
-        i=0
-        txt=""
-        while i<10:
-            record=high_scores[i]
-            if self.score>record[1]:
-                name=input("New high score!\nPlease type in your name:\n")
-                txt+="*NEW*    %4d    %s"%(self.score,name)+"\n"
-                cur.execute("delete from %s where time=?;"%self.mode,(high_scores[-1][0],))
-                cur.execute("insert into %s values(?,?,?);"%self.mode,(int(time()),self.score,name))
-                conn.commit()
-                i+=1
-                break
-            txt+="No.%2d"%(i+1)+"    %4d    %s"%record[1:]+"\n"
-            i+=1
-        conn.close()
-        cls()
-        print("High Scores:")
-        print(txt,end="")
-        while i<10:
-            print("No.%2d"%(i+1)+"    %4d    %s"%high_scores[i-1][1:])
-            i+=1
+        self.display_next()
 
-    def display(self):
-        cls()
-        print("             T e t r i s")
-        print(" --0-1-2-3-4-5-6-7-8-9--      - N E X T -")
+        self.bind("<Key>", self.onkeypress)
+        self.focus_set()
+        Autofall(self)
+        self.mainloop()
 
-        self.displayln(0)
-        print("      0|%s|%s|%s|%s|0"%tuple(self.nxt.shape if (1,i) in self.nxt.rel[self.nxt.ori] else " " for i in range(4)))
+    def refresh_shadow(self):
+        self.shadow_position = list(self.current_tetrimino.position)
+        while self.test(position = self.shadow_position):
+            self.shadow_position[0] += 1
+        self.shadow_position[0] -= 1
+        self.display(color = COLOR_SCHEME["shadow"], position = self.shadow_position)
 
-        self.displayln(1)
-        print("      1|%s|%s|%s|%s|1"%tuple(self.nxt.shape if (2,i) in self.nxt.rel[self.nxt.ori] else " " for i in range(4)))
+    def display(self, color = None, position = None):
+        if color is None:
+            color = self.current_tetrimino.color
+        if position is None:
+            position = self.current_tetrimino.position
+        for rel in self.current_tetrimino.squares[self.current_tetrimino.orientation]:
+            self.board[position[0]+rel[0]][position[1]+rel[1]].config(bg = color)
 
-        self.displayln(2)
-        print("      --3-4-5-6--")
+    def display_next(self):
+        for i in range(2):
+            for j in range(4):
+                self.next_tetrimino_squares[i][j].config(bg = self.next_tetrimino.color if (i,j) in self.next_tetrimino.squares[0] else COLOR_SCHEME["background"])
 
-        self.displayln(3)
-        print()
-
-        self.displayln(4)
-        print("      Score: %d (%s)"%(self.score,self.mode))
-
-        for i in range(5,20):
-            self.displayln(i)
-            print()
-
-        print("  -0-1-2-3-4-5-6-7-8-9-")
-
-    def displayln(self,l):
-        print(end="%2d|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%d"%((l,)+tuple(self.cur.shape if (l-self.cur.ref[0],i-self.cur.ref[1]) in self.cur.rel[self.cur.ori] else "*" if (l,i) in self.shadow else self.board[l][i] for i in range(10))+(l,)))
+    def onkeypress(self, event = None):
+        try:
+            {
+                "w": self.rotate,
+                "a": self.move_left,
+                "s": self.move_down,
+                "d": self.move_right,
+                " ": self.drop
+            }[event.char]()
+        except KeyError:
+            pass
 
     def rotate(self):
-        ori=self.cur.ori
-        self.cur.ori+=1
-        if self.cur.ori==len(self.cur.rel):
-            self.cur.ori=0
-        if self.islegal():
-            self.guide()
-        else:
-            self.cur.ori=ori
+        orientation = 0 if self.current_tetrimino.orientation+1 == self.current_tetrimino.orientations else self.current_tetrimino.orientation+1
+        if self.test(orientation = orientation):
+            self.display(color = COLOR_SCHEME["background"], position = self.shadow_position)
+            self.display(COLOR_SCHEME["background"])
+            self.current_tetrimino.orientation = orientation
+            self.refresh_shadow()
+            self.display()
 
-    def left(self):
-        self.cur.ref[1]-=1
-        if self.islegal():
-            self.guide()
-        else:
-            self.cur.ref[1]+=1
+    def move_left(self):
+        position = (self.current_tetrimino.position[0], self.current_tetrimino.position[1]-1)
+        if self.test(position = position):
+            self.display(color = COLOR_SCHEME["background"], position = self.shadow_position)
+            self.display(color = COLOR_SCHEME["background"])
+            self.current_tetrimino.position = position
+            self.refresh_shadow()
+            self.display()
 
-    def down(self):
-        self.cur.ref[0]+=1
-        if not self.islegal():
-            self.cur.ref[0]-=1
-            x,y=self.cur.ref
-            for i in self.cur.rel[self.cur.ori]:
-                self.board[x+i[0]][y+i[1]]=self.cur.shape
-            for i in range(20):
-                if " " not in self.board[i]:
-                    self.board.pop(i)
-                    self.board.insert(0,[" " for j in range(10)])
-                    self.score+=1
-            self.cur=self.nxt
-            self.nxt=Block(choice("IJLOSTZ"))
-            self.guide()
+    def move_down(self):
+        position = (self.current_tetrimino.position[0]+1, self.current_tetrimino.position[1])
+        if self.test(position = position):
+            self.display(COLOR_SCHEME["background"])
+            self.current_tetrimino.position = position
+            self.display()
+            return
+        for position in self.current_tetrimino.squares[self.current_tetrimino.orientation]:
+            self.board[self.current_tetrimino.position[0]+position[0]][self.current_tetrimino.position[1]+position[1]].shape = self.current_tetrimino.shape
+        line_clear = 0
+        i = 19
+        while i >= line_clear:
+            for j in range(10):
+                if self.board[i][j].shape == "background":
+                    break
+            else:
+                line_clear += 1
+                for j in range(i,0,-1):
+                    for k in range(10):
+                        self.board[j][k].shape = self.board[j-1][k].shape
+                        self.board[j][k].config(bg = COLOR_SCHEME[self.board[j][k].shape])
+                for j in range(10):
+                    self.board[0][j].shape = "background"
+                continue
+            i -= 1
+        if line_clear != 0:
+            self.score += 2*line_clear-1
+        self.scoreboard.config(text = f"Score: {self.score}")
+        self.current_tetrimino = self.next_tetrimino
+        self.next_tetrimino = Tetrimino(choice("IJLOSTZ"))
+        self.refresh_shadow()
+        self.display()
+        self.display_next()
 
-    def right(self):
-        self.cur.ref[1]+=1
-        if self.islegal():
-            self.guide()
-        else:
-            self.cur.ref[1]-=1
+    def move_right(self):
+        position = (self.current_tetrimino.position[0], self.current_tetrimino.position[1]+1)
+        if self.test(position = position):
+            self.display(color = COLOR_SCHEME["background"], position = self.shadow_position)
+            self.display(COLOR_SCHEME["background"])
+            self.current_tetrimino.position = position
+            self.refresh_shadow()
+            self.display()
 
     def drop(self):
-        while self.cur.ref!=[-1,3]:
-            self.down()
+        self.display(color = COLOR_SCHEME["background"])
+        self.current_tetrimino.position = tuple(self.shadow_position)
+        self.display()
 
-    def islegal(self):
-        if self.quited:
-            return False
-        x,y=self.cur.ref
-        for i in self.cur.rel[self.cur.ori]:
-            if x+i[0] not in range(20) or y+i[1] not in range(10) or self.board[x+i[0]][y+i[1]]!=" ":
+    def test(self, orientation = None, position = None):
+        if orientation is None:
+            orientation = self.current_tetrimino.orientation
+        if position is None:
+            position = self.current_tetrimino.position
+        for i in range(4):
+            square_position = (self.current_tetrimino.squares[orientation][i][0]+position[0],self.current_tetrimino.squares[orientation][i][1]+position[1])
+            if (
+                square_position[0] < 0 or
+                square_position[0] > 19 or
+                square_position[1] < 0 or
+                square_position[1] > 9 or
+                self.board[square_position[0]][square_position[1]].shape != "background"
+            ):
                 return False
         return True
 
-    def guide(self):
-        rel=self.cur.rel[self.cur.ori]
-        ref=self.cur.ref
-        H=20
-        for i in rel:
-            x=ref[0]+i[0]
-            y=ref[1]+i[1]
-            for j in range(x+1,20):
-                if self.board[j][y]!=" ":
-                    h=j-x-1
-                    break
-            else:
-                h=19-x
-            if h<H:
-                H=h
-        self.shadow=[]
-        for i in rel:self.shadow.append((i[0]+ref[0]+H,i[1]+ref[1]))
+class Square(tk.Frame):
+    def __init__(self, master):
+        super().__init__(
+            master,
+            bg = COLOR_SCHEME["background"],
+            highlightbackground = COLOR_SCHEME["border"],
+            highlightthickness = 1,
+            height = 32,
+            width = 32
+        )
+        self.shape = "background"
+
+class Tetrimino:
+    def __init__(self, shape):
+        self.shape = shape
+        self.position = (0,3)
+        self.orientation = 0
+        {
+            "I": self.init_I,
+            "J": self.init_J,
+            "L": self.init_L,
+            "O": self.init_O,
+            "S": self.init_S,
+            "T": self.init_T,
+            "Z": self.init_Z
+        }[shape]()
+        self.color = COLOR_SCHEME[shape]
+
+    def init_I(self):
+        self.orientations = 2
+        self.squares = (
+            ((1,0),(1,1),(1,2),(1,3)),
+            ((0,1),(1,1),(2,1),(3,1))
+        )
+
+    def init_J(self):
+        self.orientations = 4
+        self.squares = (
+            ((0,0),(1,0),(1,1),(1,2)),
+            ((0,1),(0,2),(1,1),(2,1)),
+            ((1,0),(1,1),(1,2),(2,2)),
+            ((0,1),(1,1),(2,0),(2,1))
+        )
+
+    def init_L(self):
+        self.orientations = 4
+        self.squares = (
+            ((0,2),(1,0),(1,1),(1,2)),
+            ((0,1),(1,1),(2,1),(2,2)),
+            ((1,0),(1,1),(1,2),(2,0)),
+            ((0,0),(0,1),(1,1),(2,1))
+        )
+
+    def init_O(self):
+        self.orientations = 1
+        self.squares = (
+            ((0,1),(0,2),(1,1),(1,2)),
+        )
+
+    def init_S(self):
+        self.orientations = 2
+        self.squares = (
+            ((0,1),(0,2),(1,0),(1,1)),
+            ((0,1),(1,1),(1,2),(2,2)),
+        )
+
+    def init_T(self):
+        self.orientations = 4
+        self.squares = (
+            ((0,1),(1,0),(1,1),(1,2)),
+            ((0,1),(1,1),(1,2),(2,1)),
+            ((1,0),(1,1),(1,2),(2,1)),
+            ((0,1),(1,0),(1,1),(2,1))
+        )
+
+    def init_Z(self):
+        self.orientations = 2
+        self.squares = (
+            ((0,0),(0,1),(1,1),(1,2)),
+            ((0,2),(1,1),(1,2),(2,1))
+        )
 
 class Autofall(Thread):
-    def __init__(self,game):
+    def __init__(self, tetris):
         Thread.__init__(self)
-        self.game=game
-        self.pause=False
+        self.tetris = tetris
         self.start()
 
     def run(self):
-        while self.game.islegal():
-            sleep(self.game.interval)
-            while self.pause:
-                sleep(0.1)
-            self.game.down()
-            self.game.display()
+        while self.tetris.test():
+            sleep(0.009*(100-self.tetris.score)+0.1 if self.tetris.score < 100 else 0.1)
+            self.tetris.move_down()
+        self.tetris.unbind("<Key>")
 
-if __name__=="__main__":
+if __name__ == "__main__":
     Tetris()

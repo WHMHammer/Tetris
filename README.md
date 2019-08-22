@@ -1,31 +1,23 @@
 # Tetris
 
-I started this project in order to pactice my skills in different languages.
+I started this project in order to practice my skills in different languages.
 
 ## Python3
 
-The first version I uploaded here is **not** the starting version already. I have modified the code for dozens of times even before I uploaded.
-
 ### Features
 
-- Unix and Windows compatibility (Darwin is the the kernel of macOS)
+- Built with GUI
 
-- 3 levels of difficulty (can be easily modified to manually set the game speed)
+- Compatible with any system with python3 and its standard libraries.
 
-- Show the next block
+- Tetrimino falling speed increases as score increases.
 
-- Show current score
+- Displays the next block
 
-- One-button-to-pause/resume
+- Displays the current score
 
-- One-button-to-quit
+### To do
 
-- Store the highest scores in *tetris.db* under the same directory of *tetris.py*
+- Pause/resume
 
-### Goals
-
-- GUI
-
-### Bugs
-
-(None as I know for now)
+- High scores
