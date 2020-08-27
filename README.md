@@ -1,8 +1,18 @@
 # Tetris
 
-I started this project in order to practice my skills in different languages.
+I started this project in order to practice my coding skills.
 
-## Python3
+## Skills Required/Used
+
+- Basic Instructional Programming
+
+- Object Oriented Programming
+
+- Multithreading
+
+- Database/File Access
+
+## python3
 
 ### Features
 
@@ -16,8 +26,8 @@ I started this project in order to practice my skills in different languages.
 
 - Displays the current score
 
-### To do
+- Press P to pause auto-falling. Press P again to resume.
 
-- Pause/resume
+### To Do
 
 - High scores
