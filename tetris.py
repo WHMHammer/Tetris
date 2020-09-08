@@ -1,8 +1,9 @@
+from os.path import dirname
 from random import choice
-from sqlite3 import connect
+from sqlite3 import connect, OperationalError
 from threading import Condition, Semaphore, Thread
-from time import sleep
-from tkinter import Frame, Label, N, Tk
+from time import sleep, time
+from tkinter import Button, Entry, Frame, Label, N, Tk
 
 TETRIS_ROW_N = 20
 TETRIS_COL_N = 10
@@ -18,13 +19,17 @@ COLOR_SCHEME = {
     "T": "#0000ff",
     "Z": "#9900ff"
 }
+HIGHSCORES_FILE_NAME = dirname(__file__)+"/highscores.db"
+
+
+class Orientation:
+    def __init__(self, squares):
+        self.squares = squares
+        self.next = self
 
 
 class Tetrimino:
     def __init__(self):
-        raise NotImplementedError
-
-    def init(self):
         self.color = COLOR_SCHEME[self.shape]
         self.position = [0, 3]
         self.position_prev = (0, 3)
@@ -56,23 +61,15 @@ class Tetrimino:
         self.orientation = self.orientation_prev
 
 
-class Orientation:
-    def __init__(self, squares):
-        self.squares = squares
-        self.next = self
-
-
 class Tetrimino_I(Tetrimino):
+    shape = "I"
     orientation_init = Orientation(((1, 0), (1, 1), (1, 2), (1, 3)))
     orientation_init.next = Orientation(((0, 1), (1, 1), (2, 1), (3, 1)))
     orientation_init.next.next = orientation_init
 
-    def __init__(self):
-        self.shape = "I"
-        super().init()
-
 
 class Tetrimino_J(Tetrimino):
+    shape = "J"
     orientation_init = Orientation(((0, 0), (1, 0), (1, 1), (1, 2)))
     orientation_init.next = Orientation(((0, 1), (0, 2), (1, 1), (2, 1)))
     orientation_init.next.next = Orientation(((1, 0), (1, 1), (1, 2), (2, 2)))
@@ -80,12 +77,9 @@ class Tetrimino_J(Tetrimino):
         Orientation(((0, 1), (1, 1), (2, 0), (2, 1)))
     orientation_init.next.next.next.next = orientation_init
 
-    def __init__(self):
-        self.shape = "J"
-        super().init()
-
 
 class Tetrimino_L(Tetrimino):
+    shape = "L"
     orientation_init = Orientation(((0, 2), (1, 0), (1, 1), (1, 2)))
     orientation_init.next = Orientation(((0, 1), (1, 1), (2, 1), (2, 2)))
     orientation_init.next.next = Orientation(((1, 0), (1, 1), (1, 2), (2, 0)))
@@ -93,30 +87,21 @@ class Tetrimino_L(Tetrimino):
         Orientation(((0, 0), (0, 1), (1, 1), (2, 1)))
     orientation_init.next.next.next.next = orientation_init
 
-    def __init__(self):
-        self.shape = "L"
-        super().init()
-
 
 class Tetrimino_O(Tetrimino):
+    shape = "O"
     orientation_init = Orientation(((0, 1), (0, 2), (1, 1), (1, 2)))
-
-    def __init__(self):
-        self.shape = "O"
-        super().init()
 
 
 class Tetrimino_S(Tetrimino):
+    shape = "S"
     orientation_init = Orientation(((0, 1), (0, 2), (1, 0), (1, 1)))
     orientation_init.next = Orientation(((0, 1), (1, 1), (1, 2), (2, 2)))
     orientation_init.next.next = orientation_init
 
-    def __init__(self):
-        self.shape = "S"
-        super().init()
-
 
 class Tetrimino_T(Tetrimino):
+    shape = "T"
     orientation_init = Orientation(((0, 1), (1, 0), (1, 1), (1, 2)))
     orientation_init.next = Orientation(((0, 1), (1, 1), (1, 2), (2, 1)))
     orientation_init.next.next = Orientation(((1, 0), (1, 1), (1, 2), (2, 1)))
@@ -124,19 +109,29 @@ class Tetrimino_T(Tetrimino):
         Orientation(((0, 1), (1, 0), (1, 1), (2, 1)))
     orientation_init.next.next.next.next = orientation_init
 
-    def __init__(self):
-        self.shape = "T"
-        super().init()
-
 
 class Tetrimino_Z(Tetrimino):
+    shape = "Z"
     orientation_init = Orientation(((0, 0), (0, 1), (1, 1), (1, 2)))
     orientation_init.next = Orientation(((0, 2), (1, 1), (1, 2), (2, 1)))
     orientation_init.next.next = orientation_init
 
-    def __init__(self):
-        self.shape = "Z"
-        super().init()
+
+class Square(Frame):
+    def __init__(self, master):
+        super().__init__(
+            master,
+            bg=COLOR_SCHEME[""],
+            highlightbackground=COLOR_SCHEME["border"],
+            highlightthickness=1,
+            height=32,
+            width=32
+        )
+        self.shape = ""
+
+
+class FakeSKeyOnPress:
+    char = "s"
 
 
 class Tetris(Tk):
@@ -198,10 +193,8 @@ class Tetris(Tk):
         self.bind("<Key>", self.on_key_press)
         self.focus_set()
 
-        th = AutoMoveDownThread(self)
-
+        th = AutoFallThread(self)
         self.mainloop()
-
         th.join()
 
     def new_random_tetrimino(self):
@@ -285,7 +278,30 @@ class Tetris(Tk):
                 self.refresh_next_tetrimino_display()
                 if not self.check():
                     self.is_over = True
-                    # high scores
+                    Label(
+                        self.info_frame,
+                        text="Your name Please:"
+                    ).grid(row=3, column=0, columnspan=4)
+                    self.name_entry = Entry(
+                        self.info_frame,
+                        width=15
+                    )
+                    self.name_entry.insert(0, "Unknown Player")
+                    self.name_entry.grid(
+                        row=4,
+                        column=0,
+                        columnspan=4
+                    )
+                    self.name_entry.focus_set()
+                    Button(
+                        self.info_frame,
+                        text="OK",
+                        command=self.commit_highscore
+                    ).grid(
+                        row=5,
+                        column=0,
+                        columnspan=4
+                    )
                 self.semaphore.release()
                 return
             self.refresh_board_display()
@@ -328,21 +344,19 @@ class Tetris(Tk):
                 return False
         return True
 
-
-class Square(Frame):
-    def __init__(self, master):
-        super().__init__(
-            master,
-            bg=COLOR_SCHEME[""],
-            highlightbackground=COLOR_SCHEME["border"],
-            highlightthickness=1,
-            height=32,
-            width=32
-        )
-        self.shape = ""
+    def commit_highscore(self):
+        name = self.name_entry.get()
+        if len(name) > 16:
+            name = name[:16]
+        write_highscores(self.score, name)
+        i = 6
+        for score, name in read_highscores():
+            pass
+        # TODO: display highscores
+        self.destroy()
 
 
-class AutoMoveDownThread(Thread):
+class AutoFallThread(Thread):
     def __init__(self, tetris):
         Thread.__init__(self)
         self.tetris = tetris
@@ -368,8 +382,54 @@ class AutoMoveDownThread(Thread):
             self.tetris.on_key_press(FakeSKeyOnPress)
 
 
-class FakeSKeyOnPress:
-    char = "s"
+def read_highscores():
+    conn = connect(HIGHSCORES_FILE_NAME)
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT score, name
+            FROM tetris
+            ORDER BY score DESC, time ASC
+            LIMIT 10;
+        """)
+    except OperationalError:
+        cur.execute("""
+            CREATE TABLE tetris(
+                score INT,
+                time INT,
+                name CHAR(16)
+            );
+        """)
+        conn.commit()
+        conn.close()
+        return tuple()
+    highscores = cur.fetchall()
+    conn.close()
+    return highscores
+
+
+def write_highscores(score, name):
+    conn = connect(HIGHSCORES_FILE_NAME)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO tetris VALUES(?, ?, ?);",
+            (score, round(time()), name)
+        )
+    except OperationalError:
+        cur.execute("""
+            CREATE TABLE tetris(
+                score INT,
+                time INT,
+                name CHAR(16)
+            );
+        """)
+        cur.execute(
+            "INSERT INTO tetris VALUES(?, ?, ?);",
+            (score, round(time()), name)
+        )
+    conn.commit()
+    conn.close()
 
 
 if __name__ == "__main__":
